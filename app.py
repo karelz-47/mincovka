@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+import re
 
 # ---------------------------
 # Helpers
@@ -24,6 +25,44 @@ def to_cents(amount_eur: float) -> int:
 
 def cents_to_eur(cents: int) -> float:
     return cents / 100.0
+
+def format_eur_sk(amount: float) -> str:
+    # Display with comma as decimal separator (Slovak style)
+    return f"{amount:.2f}".replace(".", ",")
+
+def parse_amount_sk(raw: str) -> tuple[bool, float, str]:
+    """
+    Accepts:
+      - "123"
+      - "123,4"
+      - "123,45"
+      - "123.45" (also OK)
+      - optional spaces
+    Rejects negatives and non-numeric.
+    Returns: (ok, value_float, error_message)
+    """
+    if raw is None:
+        return True, 0.0, ""
+    s = raw.strip().replace(" ", "")
+    if s == "":
+        return True, 0.0, ""
+
+    # Allow digits with optional decimal part using , or .
+    if not re.fullmatch(r"\d+([,.]\d{0,2})?", s):
+        return False, 0.0, "Zadajte číslo vo formáte napr. 12,34 (max. 2 desatinné miesta)."
+
+    s = s.replace(",", ".")
+    try:
+        val = float(s)
+    except ValueError:
+        return False, 0.0, "Neplatná suma."
+
+    if val < 0:
+        return False, 0.0, "Suma nemôže byť záporná."
+
+    # Round to cents
+    val = round(val + 1e-12, 2)
+    return True, val, ""
 
 def idx_to_person_code(idx: int) -> str:
     """
@@ -92,7 +131,8 @@ st.title("Rozpis bankoviek a mincí (EUR)")
 
 st.caption(
     "Pridajte osoby (bez mien) a sumy v EUR. Po kliknutí na „Vypočítať“ sa suma rozloží "
-    "na bankovky/mince s prioritou najvyššej hodnoty (max. bankovka 100 €)."
+    "na bankovky/mince s prioritou najvyššej hodnoty (max. bankovka 100 €). "
+    "Desatinný oddeľovač používajte čiarku (napr. 12,34)."
 )
 
 # Controls
@@ -138,27 +178,33 @@ else:
     h4.markdown("**Akcie**")
 
     to_delete_ids = set()
+    validation_errors = []
 
     for p in st.session_state.persons:
         col1, col2, col3, col4 = st.columns([1, 3, 2, 1])
 
         col1.write(p["code"])
 
-        # Number input
-        new_val = col2.number_input(
+        # Text input with comma decimals (displayed with comma)
+        default_txt = format_eur_sk(float(p["amount"]))
+        raw = col2.text_input(
             label=f"Suma pre {p['code']}",
-            min_value=0.0,
-            step=0.01,
-            format="%.2f",
-            value=float(p["amount"]),
-            key=f"amt_{p['id']}",
+            value=default_txt,
+            key=f"amt_txt_{p['id']}",
             label_visibility="collapsed",
+            placeholder="napr. 12,34",
         )
-        if new_val != p["amount"]:
-            p["amount"] = float(new_val)
-            st.session_state.calculated = False
 
-        col3.caption("Zaokrúhlené na centy (0,01 €).")
+        ok, val, err = parse_amount_sk(raw)
+        if ok:
+            if val != p["amount"]:
+                p["amount"] = val
+                st.session_state.calculated = False
+        else:
+            validation_errors.append((p["code"], err))
+            col2.error(err)
+
+        col3.caption("Formát: 12,34 (max. 2 desatinné miesta).")
 
         if col4.button("🗑️ Zmazať", key=f"del_{p['id']}", use_container_width=True):
             to_delete_ids.add(p["id"])
@@ -173,11 +219,18 @@ else:
     # Calculate
     calc_col1, calc_col2, calc_col3 = st.columns([1, 1, 3])
     with calc_col1:
-        do_calc = st.button("🧮 Vypočítať", use_container_width=True)
+        do_calc = st.button(
+            "🧮 Vypočítať",
+            use_container_width=True,
+            disabled=(len(validation_errors) > 0),
+        )
     with calc_col2:
         st.write("")
     with calc_col3:
-        st.write("")
+        if validation_errors:
+            st.warning("Opravte chyby v sumách vyššie — potom bude možné vypočítať.")
+        else:
+            st.write("")
 
     if do_calc:
         rows = []
