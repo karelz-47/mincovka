@@ -27,9 +27,11 @@ def cents_to_eur(cents: int) -> float:
     return cents / 100.0
 
 def format_eur_sk(amount: float) -> str:
-    # Display with comma as decimal separator (Slovak style)
-    return f"{amount:.2f}".replace(".", ",")
-
+    # Slovak style: space as thousands separator, comma as decimal separator (e.g., 123 456,00)
+    s = f"{amount:,.2f}"          # e.g., 123,456.00
+    s = s.replace(",", " ")       # e.g., 123 456.00
+    return s.replace(".", ",")    # e.g., 123 456,00
+    
 def parse_amount_sk(raw: str) -> tuple[bool, float, str]:
     """
     Accepts:
@@ -49,8 +51,8 @@ def parse_amount_sk(raw: str) -> tuple[bool, float, str]:
 
     # Allow digits with optional decimal part using , or .
     if not re.fullmatch(r"\d+([,.]\d{0,2})?", s):
-        return False, 0.0, "Zadajte číslo vo formáte napr. 12,34 (max. 2 desatinné miesta)."
-
+        return False, 0.0, "Zadajte číslo vo formáte napr. 123 456,00 (max. 2 desatinné miesta)."
+        
     s = s.replace(",", ".")
     try:
         val = float(s)
@@ -132,7 +134,7 @@ st.title("Mincovka")
 st.caption(
     "Pridajte osoby (bez mien) a sumy v EUR. Po kliknutí na „Vypočítať“ sa suma rozloží "
     "na bankovky/mince s prioritou najvyššej hodnoty (max. bankovka 100 €). "
-    "Desatinný oddeľovač používajte čiarku (napr. 12,34)."
+    "Formát čísla: 123 456,00 (medzery pre tisíce, čiarka pre centy)."
 )
 
 # Controls
@@ -192,7 +194,7 @@ else:
             value=default_txt,
             key=f"amt_txt_{p['id']}",
             label_visibility="collapsed",
-            placeholder="napr. 12,34",
+            placeholder="napr. 123 456,00",
         )
 
         ok, val, err = parse_amount_sk(raw)
@@ -210,8 +212,8 @@ else:
             validation_errors.append((p["code"], err))
             col2.error(err)
 
-        col3.caption("Formát: 12,34 (max. 2 desatinné miesta).")
-
+        col3.caption("Formát: 123 456,00 (max. 2 desatinné miesta).")
+        
         if col4.button("🗑️ Zmazať", key=f"del_{p['id']}", use_container_width=True):
             to_delete_ids.add(p["id"])
 
