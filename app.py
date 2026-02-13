@@ -141,7 +141,7 @@ with c1:
     if st.button("➕ Pridať osobu", use_container_width=True):
         if len(st.session_state.persons) < 100:
             code = idx_to_person_code(len(st.session_state.persons))
-            st.session_state.persons.append({"id": st.session_state.next_id, "code": code, "amount": 0.0})
+            st.session_state.persons.append({"id": st.session_state.next_id, "code": code, "amount": None})
             st.session_state.next_id += 1
             st.session_state.calculated = False
         else:
@@ -156,7 +156,7 @@ with c2:
         else:
             for _ in range(add_n):
                 code = idx_to_person_code(len(st.session_state.persons))
-                st.session_state.persons.append({"id": st.session_state.next_id, "code": code, "amount": 0.0})
+                st.session_state.persons.append({"id": st.session_state.next_id, "code": code, "amount": None})
                 st.session_state.next_id += 1
             st.session_state.calculated = False
 
@@ -186,7 +186,7 @@ else:
         col1.write(p["code"])
 
         # Text input with comma decimals (displayed with comma)
-        default_txt = format_eur_sk(float(p["amount"]))
+        default_txt = "" if p["amount"] is None else format_eur_sk(float(p["amount"]))
         raw = col2.text_input(
             label=f"Suma pre {p['code']}",
             value=default_txt,
@@ -197,9 +197,15 @@ else:
 
         ok, val, err = parse_amount_sk(raw)
         if ok:
-            if val != p["amount"]:
-                p["amount"] = val
-                st.session_state.calculated = False
+            # Keep None if the input is empty, so new persons stay blank until user types a value
+            if raw is None or raw.strip() == "":
+                if p["amount"] is not None:
+                    p["amount"] = None
+                    st.session_state.calculated = False
+            else:
+                if p["amount"] is None or val != p["amount"]:
+                    p["amount"] = val
+                    st.session_state.calculated = False
         else:
             validation_errors.append((p["code"], err))
             col2.error(err)
@@ -209,6 +215,10 @@ else:
         if col4.button("🗑️ Zmazať", key=f"del_{p['id']}", use_container_width=True):
             to_delete_ids.add(p["id"])
 
+    # Block calculation if any amount is still empty (None)
+    if any(p["amount"] is None for p in st.session_state.persons):
+        validation_errors.append(("_EMPTY_", "Vyplňte sumu pre všetky osoby (prázdne pole nie je povolené)."))
+    
     if to_delete_ids:
         st.session_state.persons = [p for p in st.session_state.persons if p["id"] not in to_delete_ids]
         st.session_state.calculated = False
@@ -238,7 +248,7 @@ else:
         summary_total_cents = 0
 
         for p in st.session_state.persons:
-            amt_cents = to_cents(p["amount"])
+            amt_cents = to_cents(float(p["amount"]))
             breakdown = compute_breakdown(amt_cents)
             computed_cents = breakdown_value_cents(breakdown)
 
