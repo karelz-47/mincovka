@@ -127,7 +127,7 @@ if "summary_df" not in st.session_state:
 # ---------------------------
 
 st.set_page_config(page_title="Mincovka", layout="wide")
-st.title("Rozpis bankoviek a mincí (EUR)")
+st.title("Mincovka")
 
 st.caption(
     "Pridajte osoby (bez mien) a sumy v EUR. Po kliknutí na „Vypočítať“ sa suma rozloží "
