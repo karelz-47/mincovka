@@ -126,7 +126,7 @@ if "summary_df" not in st.session_state:
 # UI
 # ---------------------------
 
-st.set_page_config(page_title="Rozpis bankoviek a mincí", layout="wide")
+st.set_page_config(page_title="Mincovka", layout="wide")
 st.title("Rozpis bankoviek a mincí (EUR)")
 
 st.caption(
